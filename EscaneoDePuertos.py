@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import messagebox
 import nmap
 from tkinter import ttk
 from threading import Thread
@@ -7,8 +8,8 @@ from threading import Thread
 class PortScannerApp:
     def __init__(self):
         self.ventana = tk.Tk()
-        self.ventana.title("Escaneo de Puertos -  By Javier Brega")
-        self.ventana.configure(bg='white')  # Establecer el color de fondo de la ventana
+        self.ventana.title("Escaneo de Puertos - Javier Brega")
+        self.ventana.configure(bg='white')
 
         self.ip_label = tk.Label(self.ventana, text="Dirección IP:", bg='white')
         self.ip_label.pack()
@@ -25,12 +26,12 @@ class PortScannerApp:
         self.puerto_final_entry = tk.Entry(self.ventana)
         self.puerto_final_entry.pack()
 
-        self.button_frame = tk.Frame(self.ventana, bg='white')  # Establecer el color de fondo del frame
+        self.button_frame = tk.Frame(self.ventana, bg='white')
         self.button_frame.pack()
 
         self.escanear_button = tk.Button(self.button_frame, text="Escanear", command=self.escanear_puertos,
-                                         bg='lightblue', fg='black')  # Establecer colores de fondo y primer plano
-        self.escanear_button.pack(side=tk.LEFT, padx=5, pady=5)  # Agregar espacio entre los botones
+                                         bg='lightblue', fg='black')
+        self.escanear_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.suspender_button = tk.Button(self.button_frame, text="Suspender", command=self.suspender_escaneo,
                                           bg='lightgreen', fg='black')
@@ -45,69 +46,46 @@ class PortScannerApp:
         self.progreso = ttk.Progressbar(self.ventana, mode="determinate")
         self.progreso.pack()
 
-        self.informe_text = tk.Text(self.ventana, height=10, width=50)
+        self.informe_text = tk.Text(self.ventana, height=10, width=70)
         self.informe_text.pack()
 
         self.nm = nmap.PortScanner()
         self.hilo_escaneo = None
 
-    # Resto del código...
-
     def escanear_puertos(self):
-        self.limpiar_pantalla()
-
         direccion_ip = self.ip_entry.get()
         puerto_inicial = int(self.puerto_inicial_entry.get())
         puerto_final = int(self.puerto_final_entry.get())
 
-        self.escanear_button.config(state=tk.DISABLED)
-        self.suspender_button.config(state=tk.NORMAL)
-        self.limpiar_button.config(state=tk.DISABLED)
-
-        self.hilo_escaneo = Thread(target=self.realizar_escaneo, args=(direccion_ip, puerto_inicial, puerto_final))
-        self.hilo_escaneo.start()
-
-    def realizar_escaneo(self, direccion_ip, puerto_inicial, puerto_final):
-        scan_range = f"{puerto_inicial}-{puerto_final}"
-        self.nm.scan(direccion_ip, arguments=f"-p {scan_range} -T4")
-
         resultados = []
-        total_puertos = puerto_final - puerto_inicial + 1
-        progreso_actual = 0
 
-        for host in self.nm.all_hosts():
-            for puerto in self.nm[host]['tcp']:
-                if self.hilo_escaneo.is_alive() == False:
-                    self.limpiar_pantalla()
-                    return
+        nm = nmap.PortScanner()
 
-                if self.nm[host]['tcp'][puerto]['state'] == 'open':
-                    resultados.append(f"El puerto {puerto} está abierto.")
+        scan_range = f"{puerto_inicial}-{puerto_final}"
+        nm.scan(direccion_ip, arguments=f"-p {scan_range} -T4")
 
-                progreso_actual += 1
-                porcentaje = (progreso_actual / total_puertos) * 100
-                self.progreso["value"] = porcentaje
-                self.progreso.update()
+        for host in nm.all_hosts():
+            for puerto in nm[host]['tcp']:
+                if nm[host]['tcp'][puerto]['state'] == 'open':
+                    servicio = nm[host]['tcp'][puerto]['name']
+                    estado = nm[host]['tcp'][puerto]['state']
+                    resultados.append(f"El puerto {puerto} está abierto. Utilizado por: {servicio} ({estado}).")
 
         self.informe_text.delete(1.0, tk.END)
-        self.informe_text.insert(tk.END, "\n".join(resultados))
 
-        self.escanear_button.config(state=tk.NORMAL)
-        self.suspender_button.config(state=tk.DISABLED)
-        self.limpiar_button.config(state=tk.NORMAL)
+        if resultados:
+            self.informe_text.insert(tk.END, "\n".join(resultados))
+        else:
+            messagebox.showinfo("Información", "No se encontraron puertos abiertos.")
 
     def suspender_escaneo(self):
-        if self.hilo_escaneo and self.hilo_escaneo.is_alive():
-            self.hilo_escaneo.join()
+        # Lógica para suspender el escaneo (si es necesario)
+        pass
 
     def limpiar_pantalla(self):
         self.informe_text.delete(1.0, tk.END)
-        self.progreso["value"] = 0
-
-    def iniciar_aplicacion(self):
-        self.ventana.mainloop()
 
 
-if __name__ == "__main__":
-    app = PortScannerApp()
-    app.iniciar_aplicacion()
+# Crear una instancia de la aplicación y ejecutar el bucle de eventos
+app = PortScannerApp()
+app.ventana.mainloop()
