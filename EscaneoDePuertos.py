@@ -7,7 +7,7 @@ from threading import Thread
 class PortScannerApp:
     def __init__(self):
         self.ventana = tk.Tk()
-        self.ventana.title("Escaneo de Puertos -  By Javier Brega + ChatGPT ")
+        self.ventana.title("Escaneo de Puertos -  By Javier Brega")
         self.ventana.configure(bg='white')  # Establecer el color de fondo de la ventana
 
         self.ip_label = tk.Label(self.ventana, text="Dirección IP:", bg='white')
