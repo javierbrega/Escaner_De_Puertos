@@ -1,69 +1,113 @@
-import tkinter as tk  # Importar la biblioteca Tkinter para la interfaz gráfica
-import nmap  # Importar la biblioteca nmap para el escaneo de puertos
+import tkinter as tk
+import nmap
+from tkinter import ttk
+from threading import Thread
 
 
-def escanear_puertos():
-    # Obtener la dirección IP ingresada por el usuario
-    direccion_ip = ip_entry.get()
+class PortScannerApp:
+    def __init__(self):
+        self.ventana = tk.Tk()
+        self.ventana.title("Escaneo de Puertos -  By Javier Brega + ChatGPT ")
+        self.ventana.configure(bg='white')  # Establecer el color de fondo de la ventana
 
-    # Obtener el número de puerto inicial ingresado por el usuario y convertirlo a entero
-    puerto_inicial = int(puerto_inicial_entry.get())
+        self.ip_label = tk.Label(self.ventana, text="Dirección IP:", bg='white')
+        self.ip_label.pack()
+        self.ip_entry = tk.Entry(self.ventana)
+        self.ip_entry.pack()
 
-    # Obtener el número de puerto final ingresado por el usuario y convertirlo a entero
-    puerto_final = int(puerto_final_entry.get())
+        self.puerto_inicial_label = tk.Label(self.ventana, text="Puerto Inicial:", bg='white')
+        self.puerto_inicial_label.pack()
+        self.puerto_inicial_entry = tk.Entry(self.ventana)
+        self.puerto_inicial_entry.pack()
 
-    resultados = []  # Lista para almacenar los resultados del escaneo de puertos
+        self.puerto_final_label = tk.Label(self.ventana, text="Puerto Final:", bg='white')
+        self.puerto_final_label.pack()
+        self.puerto_final_entry = tk.Entry(self.ventana)
+        self.puerto_final_entry.pack()
 
-    nm = nmap.PortScanner()  # Crear una instancia de la clase PortScanner de nmap
+        self.button_frame = tk.Frame(self.ventana, bg='white')  # Establecer el color de fondo del frame
+        self.button_frame.pack()
 
-    # Definir el rango de puertos a escanear
-    scan_range = f"{puerto_inicial}-{puerto_final}"
+        self.escanear_button = tk.Button(self.button_frame, text="Escanear", command=self.escanear_puertos,
+                                         bg='lightblue', fg='black')  # Establecer colores de fondo y primer plano
+        self.escanear_button.pack(side=tk.LEFT, padx=5, pady=5)  # Agregar espacio entre los botones
 
-    # Realizar el escaneo de puertos utilizando nmap
-    nm.scan(direccion_ip, arguments=f"-p {scan_range} -T4")
+        self.suspender_button = tk.Button(self.button_frame, text="Suspender", command=self.suspender_escaneo,
+                                          bg='lightgreen', fg='black')
+        self.suspender_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.suspender_button.config(state=tk.DISABLED)
 
-    # Iterar sobre los hosts encontrados en el escaneo
-    for host in nm.all_hosts():
-        # Iterar sobre los puertos encontrados para cada host
-        for puerto in nm[host]['tcp']:
-            # Verificar si el puerto está abierto
-            if nm[host]['tcp'][puerto]['state'] == 'open':
-                resultados.append(f"El puerto {puerto} está abierto.")
+        self.limpiar_button = tk.Button(self.button_frame, text="Limpiar", command=self.limpiar_pantalla,
+                                        bg='lightcoral', fg='black')
+        self.limpiar_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.limpiar_button.config(state=tk.DISABLED)
 
-    # Borrar el contenido existente en el área de texto
-    informe_text.delete(1.0, tk.END)
+        self.progreso = ttk.Progressbar(self.ventana, mode="determinate")
+        self.progreso.pack()
 
-    # Insertar los resultados del escaneo en el área de texto
-    informe_text.insert(tk.END, "\n".join(resultados))
+        self.informe_text = tk.Text(self.ventana, height=10, width=50)
+        self.informe_text.pack()
+
+        self.nm = nmap.PortScanner()
+        self.hilo_escaneo = None
+
+    # Resto del código...
+
+    def escanear_puertos(self):
+        self.limpiar_pantalla()
+
+        direccion_ip = self.ip_entry.get()
+        puerto_inicial = int(self.puerto_inicial_entry.get())
+        puerto_final = int(self.puerto_final_entry.get())
+
+        self.escanear_button.config(state=tk.DISABLED)
+        self.suspender_button.config(state=tk.NORMAL)
+        self.limpiar_button.config(state=tk.DISABLED)
+
+        self.hilo_escaneo = Thread(target=self.realizar_escaneo, args=(direccion_ip, puerto_inicial, puerto_final))
+        self.hilo_escaneo.start()
+
+    def realizar_escaneo(self, direccion_ip, puerto_inicial, puerto_final):
+        scan_range = f"{puerto_inicial}-{puerto_final}"
+        self.nm.scan(direccion_ip, arguments=f"-p {scan_range} -T4")
+
+        resultados = []
+        total_puertos = puerto_final - puerto_inicial + 1
+        progreso_actual = 0
+
+        for host in self.nm.all_hosts():
+            for puerto in self.nm[host]['tcp']:
+                if self.hilo_escaneo.is_alive() == False:
+                    self.limpiar_pantalla()
+                    return
+
+                if self.nm[host]['tcp'][puerto]['state'] == 'open':
+                    resultados.append(f"El puerto {puerto} está abierto.")
+
+                progreso_actual += 1
+                porcentaje = (progreso_actual / total_puertos) * 100
+                self.progreso["value"] = porcentaje
+                self.progreso.update()
+
+        self.informe_text.delete(1.0, tk.END)
+        self.informe_text.insert(tk.END, "\n".join(resultados))
+
+        self.escanear_button.config(state=tk.NORMAL)
+        self.suspender_button.config(state=tk.DISABLED)
+        self.limpiar_button.config(state=tk.NORMAL)
+
+    def suspender_escaneo(self):
+        if self.hilo_escaneo and self.hilo_escaneo.is_alive():
+            self.hilo_escaneo.join()
+
+    def limpiar_pantalla(self):
+        self.informe_text.delete(1.0, tk.END)
+        self.progreso["value"] = 0
+
+    def iniciar_aplicacion(self):
+        self.ventana.mainloop()
 
 
-# Crear la ventana principal
-ventana = tk.Tk()
-
-ventana.title("Escaneo de Puertos")  # Establecer el título de la ventana
-
-# Etiquetas y campos de entrada para la dirección IP y los puertos inicial y final
-ip_label = tk.Label(ventana, text="Dirección IP:")
-ip_label.pack()
-ip_entry = tk.Entry(ventana)
-ip_entry.pack()
-
-puerto_inicial_label = tk.Label(ventana, text="Puerto Inicial:")
-puerto_inicial_label.pack()
-puerto_inicial_entry = tk.Entry(ventana)
-puerto_inicial_entry.pack()
-
-puerto_final_label = tk.Label(ventana, text="Puerto Final:")
-puerto_final_label.pack()
-puerto_final_entry = tk.Entry(ventana)
-puerto_final_entry.pack()
-
-# Botón para iniciar el escaneo de puertos
-escanear_button = tk.Button(ventana, text="Escanear", command=escanear_puertos)
-escanear_button.pack()
-
-# Área de texto para mostrar el informe del escaneo
-informe_text = tk.Text(ventana, height=10, width=50)
-informe_text.pack()
-
-ventana.mainloop()  # Iniciar el bucle de eventos de la ventana
+if __name__ == "__main__":
+    app = PortScannerApp()
+    app.iniciar_aplicacion()
